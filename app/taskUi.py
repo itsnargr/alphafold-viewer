@@ -581,69 +581,88 @@ def createEntrypoints(webapp):
             include_styles=True,
         )
     @webapp.get("/ui/viewer")
+    @webapp.get("/ui/viewer")
     def entrypoint_static_viewer():
         html = """
         <link rel="stylesheet" href="/static/molstar/molstar.css">
 
         <div class="content-card" style="max-width: 1100px;">
-            <div class="tasks-header" style="margin-bottom: 1.5rem;">
+
+            <div class="tasks-header" style="margin-bottom: 1rem;">
                 <h1 class="tasks-title">3D Structure Viewer</h1>
                 <p style="color: rgba(255,255,255,0.6); font-size: 0.9rem;">
                     AlphaFold predicted models
                 </p>
             </div>
 
-            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                <span style="color: rgba(255,255,255,0.6);
-                             font-size: 0.9rem; align-self: center;">
+            <!-- Model buttons — outside viewer, always visible -->
+            <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;
+                        flex-wrap:wrap; position:relative; z-index:9999;">
+                <span style="color:rgba(255,255,255,0.6);
+                             font-size:0.9rem; align-self:center;">
                     Select model:
                 </span>
-                <button onclick="loadModel(1)" id="btn-1" class="btn btn-small">Model 1</button>
-                <button onclick="loadModel(2)" id="btn-2" class="btn btn-small">Model 2</button>
-                <button onclick="loadModel(3)" id="btn-3" class="btn btn-small">Model 3</button>
-                <button onclick="loadModel(4)" id="btn-4" class="btn btn-small">Model 4</button>
-                <button onclick="loadModel(5)" id="btn-5" class="btn btn-small">Model 5</button>
+                <button onclick="loadModel(1)" id="btn-1"
+                        class="btn btn-small">Model 1</button>
+                <button onclick="loadModel(2)" id="btn-2"
+                        class="btn btn-small">Model 2</button>
+                <button onclick="loadModel(3)" id="btn-3"
+                        class="btn btn-small">Model 3</button>
+                <button onclick="loadModel(4)" id="btn-4"
+                        class="btn btn-small">Model 4</button>
+                <button onclick="loadModel(5)" id="btn-5"
+                        class="btn btn-small">Model 5</button>
             </div>
 
-            <div style="display:flex; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
+            <!-- pLDDT legend -->
+            <div style="display:flex; gap:1rem; margin-bottom:0.75rem;
+                        flex-wrap:wrap; position:relative; z-index:9999;">
                 <span style="color:rgba(255,255,255,0.6); font-size:0.85rem;">
                     Confidence (pLDDT):
                 </span>
-                <span style="font-size:0.8rem; display:flex; align-items:center; gap:4px;">
+                <span style="font-size:0.8rem; display:flex;
+                             align-items:center; gap:4px;">
                     <span style="width:12px;height:12px;background:#0053D6;
                                  border-radius:2px;display:inline-block;"></span>
                     Very high (&gt;90)
                 </span>
-                <span style="font-size:0.8rem; display:flex; align-items:center; gap:4px;">
+                <span style="font-size:0.8rem; display:flex;
+                             align-items:center; gap:4px;">
                     <span style="width:12px;height:12px;background:#65CBF3;
                                  border-radius:2px;display:inline-block;"></span>
                     High (70-90)
                 </span>
-                <span style="font-size:0.8rem; display:flex; align-items:center; gap:4px;">
+                <span style="font-size:0.8rem; display:flex;
+                             align-items:center; gap:4px;">
                     <span style="width:12px;height:12px;background:#FFDB13;
                                  border-radius:2px;display:inline-block;"></span>
                     Low (50-70)
                 </span>
-                <span style="font-size:0.8rem; display:flex; align-items:center; gap:4px;">
+                <span style="font-size:0.8rem; display:flex;
+                             align-items:center; gap:4px;">
                     <span style="width:12px;height:12px;background:#FF7D45;
                                  border-radius:2px;display:inline-block;"></span>
                     Very low (&lt;50)
                 </span>
             </div>
 
-            <div id="mol-viewer" style="width:100%; height:500px;
-                                         border-radius:12px; overflow:hidden;">
+            <!-- Viewer wrapper — fixed height, Mol* cannot escape this -->
+            <div style="position:relative; width:100%; height:600px;
+                        border-radius:12px; overflow:hidden;">
+                <div id="mol-viewer" style="position:absolute;
+                     top:0; left:0; width:100%; height:100%;"></div>
             </div>
+
         </div>
 
-       <script src="/static/molstar/molstar.js"></script>
+        <script src="/static/molstar/molstar.js"></script>
         <script>
             let viewer = null;
             let models = [];
 
             function setActiveButton(n) {
                 for (let i = 1; i <= 5; i++) {
-                    const btn = document.getElementById(`btn-${i}`);
+                    const btn = document.getElementById('btn-' + i);
                     btn.style.background = i === n ? 'rgba(0,212,255,0.25)' : '';
                     btn.style.borderColor = i === n ? '#00d4ff' : '';
                     btn.style.color = i === n ? '#00d4ff' : '';
@@ -651,10 +670,30 @@ def createEntrypoints(webapp):
             }
 
             async function loadModel(modelNumber) {
-                if (!viewer || models.length === 0) return;
+                if (models.length === 0) return;
                 setActiveButton(modelNumber);
-                await viewer.clear();
-                await viewer.loadStructureFromUrl(models[modelNumber - 1].url, 'pdb');
+
+                // Destroy old viewer and recreate it fresh
+                if (viewer) {
+                    viewer.plugin.dispose();
+                    viewer = null;
+                }
+
+                // Clear the container
+                document.getElementById('mol-viewer').innerHTML = '';
+
+                // Create fresh viewer
+                viewer = await molstar.Viewer.create('mol-viewer', {
+                    layoutIsExpanded: false,
+                    layoutShowControls: false,
+                    layoutShowSequence: false,
+                    layoutShowLog: false,
+                    layoutShowLeftPanel: false,
+                });
+
+                await viewer.loadStructureFromUrl(
+                    models[modelNumber - 1].url, 'pdb'
+                );
             }
 
             async function start() {
@@ -663,14 +702,13 @@ def createEntrypoints(webapp):
                     layoutShowControls: false,
                     layoutShowSequence: false,
                     layoutShowLog: false,
+                    layoutShowLeftPanel: false,
                 });
 
-                // Fetch model list from API
                 const res = await fetch('/api/models');
                 models = await res.json();
                 console.log('Models loaded:', models);
 
-                // Load first model automatically
                 if (models.length > 0) {
                     setActiveButton(1);
                     await viewer.loadStructureFromUrl(models[0].url, 'pdb');
